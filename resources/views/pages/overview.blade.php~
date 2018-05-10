@@ -1,0 +1,158 @@
+@extends('layouts.dashboard')
+@section('style')
+
+@endsection
+@section('contents')
+    <?php
+    $clients = App\User::orderBy('created_at','desc')->where("role_id","=","4")->get();
+    $employees = App\User::orderBy('created_at','desc')->where("role_id","=","3")->get();
+    $partners = App\User::orderBy('created_at','desc')->where("role_id","=","2")->get();
+    $cars = App\models\Cars::orderBy('created_at','desc')->get();
+    $cars_available = App\models\Cars::orderBy('created_at','desc')->where('available','1')->get();
+    $rentings = App\models\Rentings::orderBy('created_at','desc')->get();
+    ?>
+    <div role="tabpanel" class="tab-pane fade in active" id="Overview">
+        <article class="statistics">
+            <h2 class="title">الاحصائيات</h2>
+            <div class="item col-md-3 col-xs-6">
+                <div class="box box-orange">
+                    <div class="num">{{$clients->count()}}</div>
+                    <div class="title">عميل </div>
+                </div>
+            </div>
+            <div class="item col-md-3 col-xs-6">
+                <div class="box box-red">
+                    <div class="num">{{$employees->count()}}</div>
+                    <div class="title">موظف</div>
+                </div>
+            </div>
+            <div class="item col-md-3 col-xs-6">
+                <div class="box box-blue">
+                    <div class="num">{{$partners->count()}}</div>
+                    <div class="title">شريك</div>
+                </div>
+            </div>
+            <div class="item col-md-3 col-xs-6">
+                <div class="box box-green">
+                    <div class="num">{{$rentings->count()}}</div>
+                    <div class="title">حجوزات</div>
+                </div>
+            </div>
+            <div class="item col-md-4 col-xs-6">
+                <div class="box box-red">
+                    <div class="num">{{$cars->count()}}</div>
+                    <div class="title">سيارة</div>
+                </div>
+            </div>
+            <div class="item col-md-4 col-xs-6">
+                <div class="box box-orange">
+                    <div class="num">{{$cars_available->count()}}</div>
+                    <div class="title">سيارة متاحة</div>
+                </div>
+            </div>
+            <div class="item col-md-4 col-xs-6">
+                <div class="box box-blue">
+                    <div class="num">{{$depts['total']}}</div>
+                    <div class="title">ديون</div>
+                </div>
+            </div>
+
+            <div class="clearfix"></div>
+        </article>
+        <article class="Latest-Clients main-box col-md-5-5 col-xs-12">
+            <h2 class="title">اخر العملاء</h2>
+            <?php $clients =$clients->take(6)  ?>
+            @foreach($clients as $client)
+                <a href="/client/-{{$client->id}}"><div class="client">
+                    <h4 class="name text-dark">{{$client->first_name." ".$client->last_name}}</h4>
+                    <h5 class="date text-grey">{{date_format($client->created_at,"Y-m-d")}}</h5>
+                </div>
+                </a>
+            @endforeach
+        </article>
+        <article class="Latest-Employees main-box col-md-5-5 col-xs-12">
+            <h2 class="title">اخر الموظفين</h2>
+            <?php $employees =$employees->take(6)?>
+            @foreach($employees as $employee)
+                <div class="employee">
+                    <h4 class="name text-dark">{{$employee->first_name." ".$employee->last_name}}</h4>
+                    <h5 class="date text-grey">{{date_format($employee->created_at,"Y-m-d")}}</h5>
+                </div>
+            @endforeach
+        </article>
+        <article class="Latest-Reservations main-box col-md-8-5 col-xs-12">
+            <h2 class="title">اخر الحجوزات</h2>
+            <table>
+                <tr class="title">
+                    <th>
+                        السيارة
+                    </th>
+                    <th>
+                        العميل
+                    </th>
+                    <th>
+                        وقت التسليم
+                    </th>
+                </tr>
+                <?php $rentings =$rentings->take(6)?>
+                @foreach($rentings as $renting)
+                    <tr>
+                        <td>
+                            @if($renting->car)
+                            <a href="/car/-{{$renting->car->id}}">{{$renting->car->type}}</a>
+                                @else
+                            السيارة محذوفة
+                                @endif
+                        </td>
+                        <td>
+                            <a href="/client/-{{$renting->user->id}}">{{$renting->user->first_name . " " . $renting->user->last_name}}</a>
+                        </td>
+                        <td>
+                            {{ date_format( new DateTime($renting->end_duration),"Y-m-d")}}
+                        </td>
+                    </tr>
+                @endforeach
+
+            </table>
+        </article>
+        <article class="Latest-Cars main-box col-md-3 col-xs-12">
+            <h2 class="title">اخر السيارات</h2>
+            <?php $cars =$cars->take(4)?>
+            @foreach($cars as $car)
+                <a href="/car/-{{$car->id}}"><div class="car">
+                    <div class="image fl-right">
+                        <img src="{{$car->picture}}">
+                    </div>
+                    <div class="text fl-right">
+                        <h4 style="padding-top:20px" class="text-dark">{{$car->type}}</h4>
+                        <h5 class="text-grey">{{date_format($car->created_at,"Y-m-d")}}</h5>
+                    </div>
+                    <div class="clearfix"></div>
+                </div>
+                </a>
+            @endforeach
+
+        </article>
+        <article class="Latest-Reservations main-box col-md-8-5 col-xs-12">
+            <h2 class="title">الديون</h2>
+            <table>
+                <tr>
+                    <th>الاسم</th>
+                    <th>المبلغ</th>
+                </tr>
+                @foreach($clients as $client)
+                    @if($depts[$client->id]['total'])
+                    <tr>
+                        <td><a class="text-dark" href="{{"/client/"."-".$client->id}}">{{$client->display_name}}</a></td>
+                        <td class="text-red">{{$depts[$client->id]['total']}}</td>
+                    </tr>
+                    @endif
+                @endforeach
+            </table>
+        </article>
+    </div>
+
+@endsection
+@section('script')
+
+@endsection

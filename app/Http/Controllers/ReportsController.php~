@@ -1,0 +1,398 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: karim
+ * Date: 01/08/16
+ * Time: 09:18 م
+ */
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\models\Partners;
+use App\models\Paying;
+use App\User;
+use App\models\Employees;
+use App\models\Cars;
+use App\models\Rentings;
+use App\models\Expenses;
+
+class ReportsController extends Controller
+{
+    public $ExpensesController;
+
+    public function __construct()
+    {
+        $this->ExpensesController = new ExpensesController();
+    }
+
+    public function GetPartnersMonths()
+    {
+        $months = Partners::select('month')->distinct()->withTrashed()->get();
+        return $months;
+    }
+
+    public function GetPartnersYears()
+    {
+        $years = Partners::select('year')->distinct()->withTrashed()->get();
+        return $years;
+    }
+
+    public function GetIncomesMonths()
+    {
+        $months = Paying::select('month')->distinct()->get();
+        return $months;
+    }
+
+    public function GetIncomesYears()
+    {
+        $years = Paying::select('year')->distinct()->get();
+        return $years;
+    }
+
+    public function GetOutcomesMonths()
+    {
+        $months = Paying::select('month')->distinct()->get();
+        return $months;
+    }
+
+    public function GetOutcomesYears()
+    {
+        $years = Paying::select('year')->distinct()->get();
+        return $years;
+    }
+
+    public function GetEmployeesMonths()
+    {
+        $months = Employees::select('month')->distinct()->withTrashed()->get();
+        return $months;
+    }
+
+    public function GetEmployeesYears()
+    {
+        $years = Employees::select('year')->distinct()->withTrashed()->get();
+        return $years;
+    }
+    public function Partners(Request $request)
+    {
+        $this->validate($request, [
+            'month' => 'required',
+            'year' => 'required'
+
+        ]);
+        $total = 0;
+        $partners = Partners::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->withTrashed()
+            ->get();
+        echo '<table><tr>
+<th>الاسم</th>
+<th>السيارة</th>
+<th>النوع</th>
+<th>المبلغ</th>
+<th>التاريخ</th>
+</tr>';
+        foreach ($partners as $partner) {
+            $car = Cars::find($partner->car_id);
+            $date = date_format(new \DateTime($partner->created_at), "d-m-Y");
+            $total += $partner->value;
+            echo "<tr>
+<td><a href='/partner/-{$partner->user_id}'>{$partner->user->first_name} {$partner->user->last_name}</a></td>
+<td>{$car->type}</td>
+<td>{$partner->title}</td>
+<td>{$partner->value}</td>
+<td>{$date}</td>
+</tr>";
+        }
+        echo "
+        <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الاجمالي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$total</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+        ";
+        echo "</table>";
+    }
+
+    public function Employees(Request $request)
+    {
+        $this->validate($request, [
+            'month' => 'required',
+            'year' => 'required'
+
+        ]);
+        $total = 0;
+        $employees = Employees::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->withTrashed()
+            ->get();
+        echo '<table><tr>
+<th>الاسم</th>
+<th>المرتب</th>
+<th>التاريخ</th>
+</tr>';
+        foreach ($employees as $employee) {
+            $total += $employee->salary;
+            $date = date_format(new \DateTime($employee->created_at), "d-m-Y");
+            echo "<tr>
+<td>{$employee->user->first_name} {$employee->user->last_name}</td>
+<td>{$employee->salary}</td>
+<td>{$date}</td>
+</tr>";
+        }
+        echo "
+        <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الاجمالي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$total</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+        ";
+        echo "</table>";
+
+
+    }
+
+    public function GetTotal($request)
+    {
+        $data['employees'] = 0;
+        $data['partners'] = 0;
+        $employees = Employees::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->withTrashed()
+            ->get();
+        $partners = Partners::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->withTrashed()
+            ->get();
+        foreach ($employees as $employee)
+        {
+            $data['employees'] += $employee->salary;
+        }
+        foreach ($partners as $partner)
+        {
+            $data['partners'] += $partner->value;
+        }
+        $data['general'] = 0;
+        $general = Expenses::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->where('type','=','1')
+            ->get();
+        foreach ($general as $item)
+        {
+            $data['general'] += $item->value;
+        }
+        $data['cars'] = 0;
+        $cars = Expenses::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->where('type','=','2')
+            ->get();
+        foreach ($cars as $item)
+        {
+            $data['cars'] += $item->value;
+        }
+        return $data;
+    }
+    public function OutComes(Request $request)
+    {
+        $data = $this->GetTotal($request);
+        $this->validate($request, [
+            'month' => 'required',
+            'year' => 'required'
+
+        ]);
+        $total_cars = 0;
+        $total_general = 0;
+        $total = 0;
+        $cars = Expenses::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->where('type','=','2')
+            ->get();
+        $general = Expenses::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->where('type','=','1')
+            ->get();
+
+        if(sizeof($cars))
+        {
+        echo '<table><tr>
+<th>السيارة</th>
+<th>العنوان</th>
+<th>المبلغ</th>
+<th>التاريخ</th>
+</tr>';
+        foreach ($cars as $car) {
+            $total_cars += $car->value;
+            $date = date_format(new \DateTime($car->created_at), "d-m-Y");
+            echo "<tr>
+<td><a href='/car/-{$car->car->id}'>{$car->car->type}</a></td>
+<td>{$car->title}</td>
+<td>{$car->value}</td>
+<td>{$date}</td>
+</tr>";
+        }
+        echo "
+        <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الاجمالي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$total_cars</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                
+        ";
+            echo '</table>';
+        }
+        else
+            echo '<h3 class="text-red">لا توجد مصاريف سيارات</h3>';
+        if(sizeof($general))
+        {
+            echo '<table><tr>
+<th>العنوان</th>
+<th>المبلغ</th>
+<th>التاريخ</th>
+</tr>';
+            foreach ($general as $item) {
+                $total_general += $item->value;
+                $date = date_format(new \DateTime($item->created_at), "d-m-Y");
+                echo "<tr>
+<td>{$item->title}</td>
+<td>{$item->value}</td>
+<td>{$date}</td>
+</tr>";
+            }
+            echo "
+        <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الاجمالي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$total_general</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                
+        ";
+            echo '</table>';
+        }
+        else
+            echo '<h3 class="text-red">لا توجد مصاريف عامة</h3>';
+        if($data['employees'])
+        {
+            echo
+            "
+            <h4 style=\"background: #0B2232;color:#ec1a25;padding:10px\"> مرتبات الموظفين : <span style='color:#fff'>{$data['employees']}</span></h4>
+            ";
+        }
+        else
+            echo '<h3 class="text-red">لا توجد مصاريف موظفين</h3>';
+        if($data['partners'])
+        {
+            echo
+            "
+            <h4 style=\"background: #0B2232;color:#ec1a25;padding:10px\"> مصاريف الشركاء : <span style='color:#fff'>{$data['partners']}</span></h4>
+            ";
+        }
+        else
+            echo '<h3 class="text-red">لا توجد مصاريف شركاء</h3>';
+        $total = $total_cars + $total_general + $data['employees'] + $data['partners'];
+
+        echo
+        "
+            <h4 style=\"text-align: center;background: #0B2232;color:#ec1a25;padding:10px\"> الاجمالي : <span style='color:#fff'>{$total}</span></h4>
+            ";
+    }
+    public function InComes(Request $request)
+    {
+        $data = $this->GetTotal($request);
+        $this->validate($request, [
+            'month' => 'required',
+            'year' => 'required'
+
+        ]);
+        $total = 0;
+        $net = 0;
+        $payings = Paying::
+        where('month', $request->month)
+            ->where('year', $request->year)
+            ->get();
+        echo '<table><tr>
+<th>العميل</th>
+<th>النوع</th>
+<th>المبلغ</th>
+<th>التاريخ</th>
+</tr>';
+        foreach ($payings as $paying) {
+            $total += $paying->value;
+            $date = date_format(new \DateTime($paying->created_at), "d-m-Y");
+            echo "<tr>
+<td><a href='/client/-{$paying->user->id}'>{$paying->user->first_name} {$paying->user->last_name}</a></td>
+<td>{$paying->title}</td>
+<td>{$paying->value}</td>
+<td>{$date}</td>
+</tr>";
+        }
+        $net = $total - ( $data['employees'] + $data['partners'] + $data['general'] + $data['cars']);
+        echo "
+        <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الاجمالي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$total</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الموظفين</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">{$data['employees']}</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الشركاء</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">{$data['partners']}</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">المصاريف العامة</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">{$data['general']}</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">مصاريف السيارات</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">{$data['cars']}</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                
+                <tr>
+                    <td style=\"background: #0B2232;color:#ec1a25\" class=\"text-red\">الصافي</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                    <td style=\"background: #0B2232;color:#ec1a25\">$net</td>
+                    <td style=\"background: #0B2232;color:#ec1a25\"></td>
+                </tr>
+                
+        ";
+        echo "</table>";
+
+    }
+    public function Depts()
+    {
+        $data['total'] = 0;
+        $clients = User::where('role_id', 4)->get();
+        foreach ($clients as $client) {
+            $rentings = Rentings::where('user_id', $client->id)->withTrashed()->get();
+            $data[$client->id]['total'] = 0;
+            if (sizeof($rentings)) {
+                foreach ($rentings as $renting) {
+                    $data[$client->id]['total'] += $renting->dept;
+                }
+            }
+            $data['total'] += $data[$client->id]['total'];
+        }
+        return $data;
+    }
+}
