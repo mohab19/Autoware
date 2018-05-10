@@ -1,0 +1,300 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\RequestReservation;
+use App\Http\Utils\Utils;
+use App\models\Attachment;
+use App\models\Attachments;
+use App\models\Car;
+use App\models\Cars;
+use App\models\Client;
+use App\models\InCome;
+use App\models\OutCome;
+use App\models\Partner;
+use App\models\Partners;
+use App\models\Paying;
+use App\models\Renting;
+use App\models\Rentings;
+use App\User;
+use Illuminate\Http\Request;
+
+use App\Http\Requests;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+
+class ReservationController extends Controller
+{
+
+    public $KM_Counter_Penalty_total = 0;
+    public $rent_fields =
+        [
+            'رقم الحجز',
+            'اسم العميل',
+            'اسم السيارة',
+            'من',
+            'الى',
+            'المبلغ المطلوب',
+            'المبلغ المدفوع',
+            'المبلغ المتبقى',
+        ];
+    public $utils;
+    public $cars;
+    public function __construct()
+    {
+        $this->utils = new Utils();
+        $this->cars = new CarsController();
+    }
+    public function GetRentingsFields()
+    {
+        return $this->rent_fields;
+    }
+
+    public function GetCustomers()
+    {
+        $user = Client::get();
+        return $user;
+    }
+
+    public function GetRentings()
+    {
+        return $rentings = Renting::orderBy("id","desc")->withTrashed()->get();
+    }
+
+    public function GetCars()
+    {
+        return Car::where('available',1)->get();
+    }
+
+    public function CalculateReservation(Request $request)
+    {
+        $data = $request->except('_token');
+        $car = Car::where('id',$data['car_id'])->first();
+        $days = $this->utils->DateDiff($data['start_duration'],$data['end_duration'],'DAY');
+        $total_price = (int)$car->day_price * (int)$days;
+        if($data['DiscountOption'])
+            $total_price = $total_price - $data['discount'];
+
+        return $total_price;
+
+    }
+    public function CreateReservation(RequestReservation $request)
+    {
+        $data = $request->except(['_token','DiscountOption']);
+        /**
+         * additional validations
+         * difference between start and end durations
+         */
+        $request->session()->flash('data', $data);
+        return url('/checkout');
+    }
+    public function ReservationCheckOut(Request $request)
+    {
+
+        $data = $request->session()->get('data');
+        if(isset($data)) {
+
+            $today = $this->utils->GetDateToday();
+            $client = Client::where('id', $data['client_id'])->first();
+            $car_user_data = Car::select(
+                'cars.*',
+                'users.*'
+            )
+                ->leftJoin('users', 'cars.partner_id', '=', 'users.id')
+                ->where('cars.id', '=', $data['car_id'])
+                ->first();
+
+            $days = $this->utils->DateDiff($data['start_duration'], $data['end_duration'], 'DAY');
+            $request->session()->flash('dataP2', $data);
+            $request->session()->flash('dataP3', $car_user_data);
+            $request->session()->flash('dataP4',$days);
+            $reservation = Renting::orderBy('id','desc')->withTrashed()->first();
+            if($reservation)
+                $sn = $reservation->id+1;
+            else
+                $sn =1;
+            return view('pages.checkout',
+                [
+                    'data' => $data,
+                    'today' => $today,
+                    'car_user_data' => $car_user_data,
+                    'client' => $client,
+                    'day_name' => $this->utils->GetDayName(),
+                    'number_of_days' => $days,
+                    'sn'=>$sn
+                ]);
+        }else{
+            return view('errors.403');
+        }
+    }
+
+    public function FinalReservationStep(Request $request)
+    {
+        $data = $request->session()->get('dataP2');
+        $carUserData = $request->session()->get('dataP3');
+        $days = $request->session()->get('dataP4');
+
+        if(isset($data) && isset($carUserData) && isset($days) ) {
+            $data['total'] = $carUserData->day_price * $days;
+            $this->ChangeCarAvailbleState($data['car_id']); // change car available state
+            $data['user_id'] = Auth::user()->id;
+
+            $rental = Renting::create($data);
+            if ($rental)
+            {
+                    $income = new InCome();
+                    $income->incomes_type_id = 1;
+                    $income->renting_id = $rental->id;
+                    $income->client_id = $rental->client_id;
+                    $income->user_id = Auth::user()->id;
+                    $income->title = "حجز";
+                    $income->value = $rental->paid;
+                    $income->save();
+                if($rental->car->rental_type_id == 2)
+                {
+                    $outcome = new OutCome();
+                    $outcome->outcomes_type_id = 2;
+                    $outcome->user_id = Auth::user()->id;
+                    $outcome->partner_id =$rental->car->partner->id;
+                    $outcome->renting_id = $rental->id;
+                    $outcome->title = "عمولة";
+                    $commission = preg_replace('/\D/', '',$rental->car->renter_value);
+                    $outcome->value = ($rental->total-$rental->discount) * ($commission/100);
+                    $outcome->save();
+
+                }
+                return 1;
+            }
+
+            else
+                return 0;
+        }else{
+            return -1;
+        }
+    }
+
+    public function ChangeCarAvailbleState($car_id)
+    {
+        $car = Car::where('id',$car_id)->first();
+        $car->available = (int)!$car->available;
+        $car->update();
+    }
+    public function Delete(Request $request)
+    {
+        $renting = Renting::find($request->id);
+        $renting->car->available = 1;
+        $renting->car->update();
+//        $incomes = InCome::where('renting_id',$renting->id)->first();
+        foreach ($renting->incomes as $income)
+        {
+            $income->forcedelete();
+        }
+        foreach ($renting->outcomes as $outcome)
+        {
+            $outcome->forcedelete();
+        }
+        $renting->forcedelete();
+    }
+    public function PenaltyPay(Request $request)
+    {
+        $renting = Renting::find($request->id);
+        if($request->KM_Counter_Penalty_paid<=$renting->KM_Counter_Penalty_total)
+        {
+            $renting->KM_Counter_Penalty_paid += $request->KM_Counter_Penalty_paid;
+            if($renting->update())
+                return 1;
+        }
+        else
+            return 2;
+    }
+    public function PenaltyCheck(Request $request)
+    {
+        $renting = Renting::find($request->id);
+        $KM_Used = $request->KM_Counter - $renting->car->KM_Counter;
+        $days = $this->utils->DateDiff($renting->start_duration, $renting->end_duration, 'DAY');
+        $KM_Expected = $days*130;
+        if($KM_Used>$KM_Expected) {
+            $KM_Diff = $KM_Used - $KM_Expected;
+            $this->KM_Counter_Penalty_total = $KM_Diff * .5;
+            return $this->KM_Counter_Penalty_total;
+        }
+        else
+            return 0;
+
+    }
+    public function Recive(Request $request)
+    {
+        $this->validate($request,[
+        'KM_Counter' => 'required|numeric',
+        'userate' => 'required|numeric|max:10',
+        'payrate' => 'required|numeric|max:10',
+    ]);
+
+        $renting = Renting::find($request->id);
+
+        if($renting->deleted_at==NULL)
+        {
+
+            $this->PenaltyCheck($request);
+
+            if($request->picture != "" && $request->picture != " " && $request->picture != "0")
+            {
+                $date = date_format(new \DateTime($renting->end_duration), "d-m-Y");
+                $attachment = new Attachment();
+                $attachment->save();
+                $request->picture = $this->cars->AddCarImage($request,$date,$renting->car->id,$attachment);
+                $attachment->car_id = $renting->car->id;
+                $attachment->title="استلام - ".$date;
+                $attachment->value=$request->picture;
+                $attachment->save();
+            }
+            $renting->car->KM_Counter=$request->KM_Counter;
+            $renting->notes = $request->notes;
+            $renting->userate = $request->userate;
+            $renting->payrate = $request->payrate;
+            $renting->KM_Counter_Penalty_total = $this->KM_Counter_Penalty_total;
+            if($renting->total-($renting->discount+$renting->paid)>=$request->dept)
+            $renting->paid += $request->dept;
+            $this->ChangeCarAvailbleState($renting->car->id);
+            if($request->dept>0)
+            {
+                $income = new InCome();
+                $income->incomes_type_id = 2;
+                $income->renting_id = $renting->id;
+                $income->client_id = $renting->client_id;
+                $income->user_id = Auth::user()->id;
+                $income->title = "دفع دين";
+                $income->value = $request->dept;
+                $income->save();
+            }
+            $renting->update();
+            $renting->car->update();
+            if($this->KM_Counter_Penalty_total>0)
+                $this->PenaltyPay($request);
+            $renting->delete();
+
+
+        }
+    }
+    public function Update(Request $request)
+    {
+        $this->validate($request,[
+            'start_duration' => 'required',
+            'end_duration' => 'required',
+            'paid' => 'required',
+    ]);
+
+        $renting = Renting::find($request->id);
+        $data = $request->except('_token','id');
+        $renting->update($data);
+                $paying = new Paying();
+                $paying->user_id = $renting->user->id;
+                $paying->title = "دفع عند تسليم السيارة : ".$renting->car->type;
+                $paying->value = $request->dept;
+                $paying->month = date("F");
+                $paying->year = date("Y");
+                $paying->save();
+            }
+
+
+}

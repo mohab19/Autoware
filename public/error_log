@@ -1,0 +1,14 @@
+[10-Sep-2017 04:21:59 UTC] PHP Fatal error:  Uncaught exception 'ReflectionException' with message 'Class App\Http\Kernel does not exist' in /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php:734
+Stack trace:
+#0 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(734): ReflectionClass->__construct('App\\Http\\Kernel')
+#1 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(629): Illuminate\Container\Container->build('App\\Http\\Kernel', Array)
+#2 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(697): Illuminate\Container\Container->make('App\\Http\\Kernel', Array)
+#3 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(230): Illuminate\Foundation\Application->make('App\\Http\\Kernel', Array)
+#4 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(731): Illuminate\Container in /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php on line 734
+[10-Sep-2017 04:26:21 UTC] PHP Fatal error:  Uncaught exception 'ReflectionException' with message 'Class App\Http\Kernel does not exist' in /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php:734
+Stack trace:
+#0 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(734): ReflectionClass->__construct('App\\Http\\Kernel')
+#1 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(629): Illuminate\Container\Container->build('App\\Http\\Kernel', Array)
+#2 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(697): Illuminate\Container\Container->make('App\\Http\\Kernel', Array)
+#3 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(230): Illuminate\Foundation\Application->make('App\\Http\\Kernel', Array)
+#4 /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php(731): Illuminate\Container in /home/mohab20/public_html/autoware/vendor/laravel/framework/src/Illuminate/Container/Container.php on line 734
